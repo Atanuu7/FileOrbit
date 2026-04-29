@@ -11,7 +11,7 @@ const UploadBox = () => {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [password, setPassword] = useState('');
-  const [maxDownloads, setMaxDownloads] = useState(3);
+  const [maxDownloads, setMaxDownloads] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [shortCode, setShortCode] = useState(null);
@@ -65,7 +65,7 @@ const UploadBox = () => {
       setFile(null);
       setPreview(null);
       setPassword('');
-      setMaxDownloads(3);
+      setMaxDownloads(1);
       setShowSettings(false);
       toast.success('File uploaded successfully!');
     } catch (err) {
@@ -103,7 +103,7 @@ const UploadBox = () => {
 
         <div className="bg-black/60 border border-primary/30 p-5 rounded-xl w-full mb-6 relative overflow-hidden group">
             <div className="flex-1 text-center py-6 bg-input rounded-xl border border-primary/20 shadow-inner">
-              <p className="text-[10px] text-primary/60 uppercase tracking-widest mb-2 font-mono">Uplink_Identity_Code</p>
+              <p className="text-[10px] text-primary/60 uppercase tracking-widest mb-2 font-mono">Uplink Identity Code</p>
               <p className="text-4xl md:text-5xl font-bold text-primary dark:text-white tracking-[0.2em] font-mono">{shortCode}</p>
             </div>
             
@@ -111,7 +111,7 @@ const UploadBox = () => {
               className="flex items-center justify-center gap-3 w-full py-5 mt-4 rounded-xl bg-primary text-white transition-all duration-500 font-bold uppercase tracking-widest text-sm group shadow-lg hover:shadow-primary/20"
               onClick={copyToClipboard}
             >
-              <span className="group-hover:scale-110 transition-transform">{copied ? 'Code_Copied' : 'Clone_Link_To_Clipboard'}</span>
+              <span className="group-hover:scale-110 transition-transform">{copied ? 'Code Copied' : 'Copy link to clipboard'}</span>
             </button>
         </div>
 
@@ -119,7 +119,7 @@ const UploadBox = () => {
           className="text-[10px] text-gray-500 hover:text-primary mt-8 uppercase tracking-[0.4em] transition-all"
           onClick={() => setShortCode(null)}
         >
-          [ New_Session ]
+          [ New Session ]
         </button>
       </div>
     );
@@ -132,8 +132,8 @@ const UploadBox = () => {
           {...getRootProps()} 
           className={`relative border border-primary/20 rounded-xl p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-500 overflow-hidden ${isDragActive ? 'bg-primary/10 border-primary scale-[1.02]' : 'bg-input hover:border-primary/40'}`}
         >
-          <div className="absolute top-2 left-2 text-[8px] font-mono text-primary/40 uppercase tracking-tighter">Node.Relay_Ready</div>
-          <div className="absolute bottom-2 right-2 text-[8px] font-mono text-primary/40 uppercase tracking-tighter">Encryption.AES_256</div>
+          <div className="absolute top-2 left-2 text-[8px] font-mono text-primary/40 uppercase tracking-tighter">Node Relay Ready</div>
+          <div className="absolute bottom-2 right-2 text-[8px] font-mono text-primary/40 uppercase tracking-tighter">Encryption AES 256</div>
           
           <input {...getInputProps()} />
           <div className="relative group">
@@ -153,7 +153,7 @@ const UploadBox = () => {
               <FileIcon className="w-10 h-10 text-primary flex-shrink-0" />
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-mono text-primary/60 uppercase tracking-tighter mb-1">Source_Data:</p>
+              <p className="text-xs font-mono text-primary/60 uppercase tracking-tighter mb-1">Source Data:</p>
               <p className="text-sm font-bold text-primary dark:text-white truncate">{file.name}</p>
               <p className="text-[10px] font-mono text-gray-400">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
             </div>
@@ -169,7 +169,7 @@ const UploadBox = () => {
           {/* Max Downloads Selector - Moved out of settings */}
           <div className="p-4 bg-input border border-white/10 rounded-xl space-y-3">
             <div className="flex justify-between items-center">
-              <label className="text-[10px] text-primary/60 uppercase tracking-widest font-mono">Max_Downloads</label>
+              <label className="text-[10px] text-primary/60 uppercase tracking-widest font-mono">Max Downloads</label>
               <span className="text-sm font-mono text-primary">{maxDownloads} / 10</span>
             </div>
             <input 
@@ -204,12 +204,12 @@ const UploadBox = () => {
               <div className="space-y-4 pt-4 border-t border-white/5 animate-slide-up mt-4">
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <label className="text-[10px] text-primary/60 uppercase tracking-widest font-mono">Encryption_Passkey</label>
+                    <label className="text-[10px] text-primary/60 uppercase tracking-widest font-mono">Encryption Passkey</label>
                     <span className="text-[8px] text-gray-500 font-mono italic">Optional</span>
                   </div>
                   <input 
                     type="password" 
-                    placeholder="ENTER_PASSWORD" 
+                    placeholder="ENTER PASSWORD" 
                     className="w-full bg-input border border-primary/20 rounded-lg px-4 py-3 text-sm text-primary dark:text-white font-mono focus:outline-none focus:border-primary transition-all placeholder:text-gray-500"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -231,7 +231,7 @@ const UploadBox = () => {
         {uploading ? (
           <><Loader2 size={18} className="animate-spin" /> Uplinking...</>
         ) : (
-          <><UploadCloud size={18} className="group-hover:scale-110 transition-transform" /> Start_Transfer</>
+          <><UploadCloud size={18} className="group-hover:scale-110 transition-transform" /> Start Transfer</>
         )}
       </button>
     </div>

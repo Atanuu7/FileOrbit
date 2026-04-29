@@ -1,7 +1,8 @@
 import express from 'express';
 import { upload } from '../config/cloudinary.js';
 import File from '../models/File.js';
-import { nanoid } from 'nanoid';
+import { customAlphabet } from 'nanoid';
+const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 import bcrypt from 'bcrypt';
 
 const router = express.Router();
@@ -20,7 +21,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       hashedPassword = await bcrypt.hash(password, salt);
     }
 
-    const shortCode = nanoid(6);
+    const shortCode = nanoid();
     const expiryMinutes = parseInt(expiresIn) || 30;
     const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000); 
 

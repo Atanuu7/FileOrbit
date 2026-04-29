@@ -1,20 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Upload, Download, Orbit, Moon, Sun } from 'lucide-react';
+import { Upload, Download, Orbit } from 'lucide-react';
 import UploadBox from './components/UploadBox';
 import DownloadBox from './components/DownloadBox';
 import { Toaster } from 'react-hot-toast';
 
 function App() {
   const [activeTab, setActiveTab] = useState('upload');
-  const [theme, setTheme] = useState('dark');
 
   useEffect(() => {
-    document.documentElement.className = theme;
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-  };
+    document.documentElement.className = 'dark';
+  }, []);
 
   // Check URL for code parameter
   useEffect(() => {
@@ -45,20 +40,12 @@ function App() {
       <div className="absolute bottom-[20%] right-[10%] w-[30vw] h-[30vw] bg-accent/20 blur-[120px] rounded-full animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
 
       {/* Header */}
-      <header className="w-full max-w-5xl flex justify-between items-center py-6 z-10 px-4">
+      <header className="w-full max-w-5xl flex justify-center items-center py-6 z-10 px-4">
         <div className="flex items-center gap-2 text-2xl font-bold tracking-normal font-mono uppercase">
           <Orbit className="text-primary w-8 h-8 drop-shadow-[0_0_15px_rgba(99,102,241,0.8)]" />
           <span className="text-glow whitespace-nowrap">FileOrbit</span>
           <span className="text-[10px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded ml-2 border border-primary/20">V2.0</span>
         </div>
-        
-        <button 
-          onClick={toggleTheme}
-          className="p-3 bg-surface border border-white/10 rounded-full hover:border-primary/50 transition-all shadow-lg text-primary"
-          title="Toggle Theme"
-        >
-          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
       </header>
 
       {/* Main Content */}
@@ -67,11 +54,11 @@ function App() {
           <div className="inline-block px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-[10px] font-mono text-primary uppercase tracking-[0.2em] mb-4">
             Encrypted Data Transfer Protocol
           </div>
-          <h1 className="text-4xl md:text-7xl font-bold mb-4 tracking-tight font-mono uppercase italic glitch-text cursor-default pb-2 pr-16 overflow-visible">
+          <h1 className="text-4xl md:text-7xl font-bold mb-4 tracking-tight font-mono uppercase cursor-default pb-2">
             File<span className="text-gradient">Orbit</span>
           </h1>
-          <p className="text-sm md:text-base text-gray-400 font-light max-w-lg mx-auto leading-relaxed border-l-2 border-primary/20 pl-4 py-2">
-            Anonymous orbital relay. <span className="text-primary font-bold">No login required.</span> Secure sharing with zero footprint. Vanishes without a trace.
+          <p className="text-sm md:text-base text-gray-400 font-light max-w-lg mx-auto leading-relaxed py-2">
+            Secure, ephemeral file sharing. <span className="text-primary font-bold">No login required.</span> Absolute privacy.
           </p>
         </div>
 
