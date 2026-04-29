@@ -58,12 +58,15 @@ const DownloadBox = () => {
     const toastId = toast.loading('Preparing download...');
 
     try {
-      // Fetching as blob is the most reliable way to force download for all file types (PDF, etc)
-      const response = await axios.get(fileData.url, {
-        responseType: 'blob',
+      // Use fetch with CORS mode for more reliable blob handling
+      const response = await fetch(fileData.url, {
+        mode: 'cors'
       });
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      if (!response.ok) throw new Error('Fetch failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', fileData.originalName);
@@ -75,13 +78,21 @@ const DownloadBox = () => {
       toast.success('Download started!', { id: toastId });
     } catch (err) {
       console.error('Download error:', err);
-      // Fallback for CORS or other issues
+      
+      // Fallback: Try a different Cloudinary URL structure
       let downloadUrl = fileData.url;
       if (downloadUrl.includes('cloudinary.com')) {
-        downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
+        // More compatible Cloudinary structure: insert fl_attachment after the version string
+        const versionMatch = downloadUrl.match(/\/v\d+\//);
+        if (versionMatch) {
+          downloadUrl = downloadUrl.replace(versionMatch[0], `${versionMatch[0]}fl_attachment/`);
+        } else {
+          downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
+        }
       }
+      
       window.open(downloadUrl, '_blank');
-      toast.error('Download failed. Trying alternative method...', { id: toastId });
+      toast.error('Direct download blocked. Opening in new tab...', { id: toastId });
     } finally {
       setLoading(false);
     }
