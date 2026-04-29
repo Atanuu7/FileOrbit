@@ -4,6 +4,7 @@ import File from '../models/File.js';
 import { customAlphabet } from 'nanoid';
 const nanoid_custom = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 import bcrypt from 'bcrypt';
+import https from 'https';
 
 const router = express.Router();
 
@@ -99,21 +100,25 @@ router.get('/download/:code', async (req, res) => {
       return res.status(404).send('File not found or expired');
     }
 
-    // Generate a secure download URL using the Cloudinary SDK
-    // This forces the 'Content-Disposition: attachment' header on Cloudinary's end
-    const downloadUrl = cloudinary.url(file.cloudinaryId, {
-      resource_type: 'auto',
-      flags: 'attachment',
-      attachment: file.originalName,
-      secure: true
+    // Force the browser to download the file with its original name
+    res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
+
+    // Fetch the file from the URL (Cloudinary) and stream it directly to the user
+    // We use https.get for maximum compatibility and performance in Node.js
+    https.get(file.url, (cloudinaryRes) => {
+      // Forward the Content-Type from Cloudinary (e.g., application/pdf or image/png)
+      res.setHeader('Content-Type', cloudinaryRes.headers['content-type'] || 'application/octet-stream');
+      
+      // Pipe the file data directly to the user's browser
+      cloudinaryRes.pipe(res);
+    }).on('error', (err) => {
+      console.error('Cloudinary Stream Error:', err);
+      res.status(500).send('Error streaming file from storage');
     });
 
-    // Redirect the user to the Cloudinary download URL
-    res.redirect(downloadUrl);
-
   } catch (error) {
-    console.error('Download Redirect Error:', error);
-    res.status(500).send('Error processing download');
+    console.error('Download Proxy Error:', error);
+    res.status(500).send('Error processing download request');
   }
 });
 
