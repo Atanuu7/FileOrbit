@@ -1,9 +1,11 @@
 import express from 'express';
 import { upload } from '../config/cloudinary.js';
 import File from '../models/File.js';
+import { nanoid } from 'nanoid';
 import { customAlphabet } from 'nanoid';
-const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
+const nanoid_custom = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 import bcrypt from 'bcrypt';
+import { Readable } from 'stream';
 
 const router = express.Router();
 
@@ -21,7 +23,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       hashedPassword = await bcrypt.hash(password, salt);
     }
 
-    const shortCode = nanoid();
+    const shortCode = nanoid_custom();
     const expiryMinutes = parseInt(expiresIn) || 30;
     const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000); 
 
@@ -88,6 +90,42 @@ router.post('/:code', async (req, res) => {
   } catch (error) {
     console.error('Retrieve Error:', error);
     res.status(500).json({ error: 'Server error retrieving file' });
+  }
+});
+
+router.get('/download/:code', async (req, res) => {
+  try {
+    const file = await File.findOne({ shortCode: req.params.code });
+
+    if (!file) {
+      return res.status(404).send('File not found or expired');
+    }
+
+    // Fetch the file from Cloudinary
+    const response = await fetch(file.url);
+    if (!response.ok) throw new Error('Failed to fetch from Cloudinary');
+
+    // Set headers to force download
+    res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'application/octet-stream');
+
+    // Stream the body to the response
+    const reader = response.body.getReader();
+    
+    // Node.js Express response doesn't directly support Web Streams API reader in all versions, 
+    // but we can convert it or use a more standard approach for Node.
+    // Since we are on a modern Node version, we can use the response.body directly if it's a stream.
+    
+    // Re-fetching using a more Node-friendly way if needed, 
+    // but actually, response.body in Node's fetch is a ReadableStream.
+    // For Express, we need a Node Readable.
+    
+    const nodeReadable = Readable.fromWeb(response.body);
+    nodeReadable.pipe(res);
+
+  } catch (error) {
+    console.error('Proxy Download Error:', error);
+    res.status(500).send('Error processing download');
   }
 });
 

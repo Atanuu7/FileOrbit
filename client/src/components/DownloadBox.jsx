@@ -55,22 +55,17 @@ const DownloadBox = () => {
     if (!fileData) return;
     
     setLoading(true);
-    toast.success('Starting download...');
+    toast.success('Establishing secure downlink...');
 
-    // Use a clean direct link. This is the most compatible way.
-    const downloadUrl = fileData.url;
+    // Use our new proxy endpoint which forces the download from the server side
+    // This is the most reliable way to ensure PDFs and other files download to disk
+    const downloadUrl = `${API_URL}/download/${code}`;
     
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.setAttribute('download', fileData.originalName);
-    link.setAttribute('target', '_blank'); // Opens in new tab which triggers download or view
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    window.location.href = downloadUrl;
     
     setTimeout(() => {
       setLoading(false);
-    }, 1000);
+    }, 2000);
   };
 
   return (
