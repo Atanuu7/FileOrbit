@@ -51,51 +51,26 @@ const DownloadBox = () => {
     }
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!fileData) return;
     
     setLoading(true);
-    const toastId = toast.loading('Preparing download...');
+    toast.success('Starting download...');
 
-    try {
-      // Use fetch with CORS mode for more reliable blob handling
-      const response = await fetch(fileData.url, {
-        mode: 'cors'
-      });
-
-      if (!response.ok) throw new Error('Fetch failed');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', fileData.originalName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success('Download started!', { id: toastId });
-    } catch (err) {
-      console.error('Download error:', err);
-      
-      // Fallback: Try a different Cloudinary URL structure
-      let downloadUrl = fileData.url;
-      if (downloadUrl.includes('cloudinary.com')) {
-        // More compatible Cloudinary structure: insert fl_attachment after the version string
-        const versionMatch = downloadUrl.match(/\/v\d+\//);
-        if (versionMatch) {
-          downloadUrl = downloadUrl.replace(versionMatch[0], `${versionMatch[0]}fl_attachment/`);
-        } else {
-          downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
-        }
-      }
-      
-      window.open(downloadUrl, '_blank');
-      toast.error('Direct download blocked. Opening in new tab...', { id: toastId });
-    } finally {
+    // Use a clean direct link. This is the most compatible way.
+    const downloadUrl = fileData.url;
+    
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.setAttribute('download', fileData.originalName);
+    link.setAttribute('target', '_blank'); // Opens in new tab which triggers download or view
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setTimeout(() => {
       setLoading(false);
-    }
+    }, 1000);
   };
 
   return (
