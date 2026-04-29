@@ -51,23 +51,40 @@ const DownloadBox = () => {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!fileData) return;
     
-    // For Cloudinary URLs, add the fl_attachment flag to force download
-    let downloadUrl = fileData.url;
-    if (downloadUrl.includes('cloudinary.com')) {
-      downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
-    }
+    setLoading(true);
+    const toastId = toast.loading('Preparing download...');
 
-    toast.success('Starting download...');
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.setAttribute('download', fileData.originalName);
-    link.setAttribute('target', '_blank');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      // Fetching as blob is the most reliable way to force download for all file types (PDF, etc)
+      const response = await axios.get(fileData.url, {
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileData.originalName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Download started!', { id: toastId });
+    } catch (err) {
+      console.error('Download error:', err);
+      // Fallback for CORS or other issues
+      let downloadUrl = fileData.url;
+      if (downloadUrl.includes('cloudinary.com')) {
+        downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
+      }
+      window.open(downloadUrl, '_blank');
+      toast.error('Download failed. Trying alternative method...', { id: toastId });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
