@@ -6,6 +6,7 @@ const nanoid_custom = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 import bcrypt from 'bcrypt';
 import https from 'https';
 import http from 'http';
+import axios from 'axios';
 
 const router = express.Router();
 
@@ -101,34 +102,46 @@ router.get('/download/:code', async (req, res) => {
       return res.status(404).send('File not found or expired');
     }
 
-    // Choose the right protocol (http or https) based on the URL
-    const protocol = file.url.startsWith('https') ? https : http;
+    // Use axios with maxRedirects and responseType: 'stream'
+    // This is the most robust way to proxy files from Cloudinary
+    const response = await axios({
+      method: 'get',
+      url: file.url,
+      responseType: 'stream',
+      maxRedirects: 5,
+      timeout: 60000, // 60 seconds for large files
+    });
 
-    protocol.get(file.url, (storageRes) => {
-      if (storageRes.statusCode !== 200) {
-        return res.status(storageRes.statusCode).send('Error fetching file from storage');
+    // Check if Cloudinary returned a success status
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`Storage responded with status: ${response.status}`);
+    }
+
+    // Set download headers
+    const safeName = encodeURIComponent(file.originalName);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);
+    res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+    
+    if (response.headers['content-length']) {
+      res.setHeader('Content-Length', response.headers['content-length']);
+    }
+
+    // Pipe the data directly to the user
+    response.data.pipe(res);
+
+    // Handle stream errors
+    response.data.on('error', (err) => {
+      console.error('Download Stream Error:', err);
+      if (!res.headersSent) {
+        res.status(500).send('Error streaming file');
       }
-
-      // Set headers to force download with original name
-      // We use a safe version of the filename for the header
-      const safeName = encodeURIComponent(file.originalName);
-      res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);
-      res.setHeader('Content-Type', storageRes.headers['content-type'] || 'application/octet-stream');
-      
-      if (storageRes.headers['content-length']) {
-        res.setHeader('Content-Length', storageRes.headers['content-length']);
-      }
-
-      // Stream the data directly to the user
-      storageRes.pipe(res);
-    }).on('error', (err) => {
-      console.error('Storage Connection Error:', err);
-      res.status(500).send('Connection to storage failed');
     });
 
   } catch (error) {
-    console.error('Download Error:', error.message);
-    res.status(500).send('Server error processing download');
+    console.error('Download Proxy Error:', error.message);
+    if (!res.headersSent) {
+      res.status(500).send(`Download failed: ${error.message}`);
+    }
   }
 });
 
