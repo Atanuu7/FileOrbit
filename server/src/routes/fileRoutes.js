@@ -110,16 +110,11 @@ router.get('/download/:code', async (req, res) => {
     
     let downloadUrl = file.url;
     
-    // Inject the attachment flag and the original filename into the URL
-    // Cloudinary syntax: /upload/fl_attachment:filename/
-    // We clean the filename to ensure it doesn't break the URL
-    const safeFileName = file.originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    // Inject the attachment flag into the URL
+    // Correct Cloudinary syntax: /upload/fl_attachment/
     
     if (downloadUrl.includes('/upload/')) {
-      downloadUrl = downloadUrl.replace('/upload/', `/upload/fl_attachment:${safeFileName}/`);
-    } else if (downloadUrl.includes('/raw/upload/')) {
-      // For raw files (non-images/PDFs)
-      downloadUrl = downloadUrl.replace('/raw/upload/', `/raw/upload/fl_attachment:${safeFileName}/`);
+      downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
     }
 
     // Redirect the browser to the direct Cloudinary download link
