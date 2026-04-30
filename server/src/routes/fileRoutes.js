@@ -4,6 +4,7 @@ import File from '../models/File.js';
 import { customAlphabet } from 'nanoid';
 const nanoid_custom = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 import bcrypt from 'bcrypt';
+import axios from 'axios';
 
 const router = express.Router();
 
@@ -25,11 +26,19 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     const expiryMinutes = parseInt(expiresIn) || 30;
     const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000); 
 
+    // Detect resource type accurately for Cloudinary signing
+    let resourceType = req.file.resource_type;
+    if (!resourceType) {
+      if (req.file.mimetype.startsWith('image/')) resourceType = 'image';
+      else if (req.file.mimetype.startsWith('video/')) resourceType = 'video';
+      else resourceType = 'raw';
+    }
+
     const newFile = await File.create({
       originalName: req.file.originalname,
       cloudinaryId: req.file.filename,
       url: req.file.path,
-      resourceType: req.file.resource_type || 'auto',
+      resourceType: resourceType,
       size: req.file.size,
       shortCode,
       expiresAt,
@@ -100,22 +109,53 @@ router.get('/download/:code', async (req, res) => {
       return res.status(404).send('File not found or expired');
     }
 
-    // Generate a secure SIGNED URL using the Cloudinary SDK
-    // This bypasses 401 errors by adding a cryptographic signature to the link
-    // The signature tells Cloudinary that this request is authorized by your server
-    const signedUrl = cloudinary.url(file.cloudinaryId, {
-      resource_type: file.resourceType || 'auto',
-      flags: 'attachment',
-      sign_url: true,
-      secure: true
-    });
+    // LAYER 1: Authenticated Proxy Fetch
+    // We use Basic Auth with Cloudinary credentials to bypass 401 errors
+    try {
+      const auth = Buffer.from(`${process.env.CLOUDINARY_API_KEY}:${process.env.CLOUDINARY_API_SECRET}`).toString('base64');
+      
+      const response = await axios({
+        method: 'get',
+        url: file.url,
+        headers: {
+          'Authorization': `Basic ${auth}`
+        },
+        responseType: 'stream',
+        timeout: 45000 // Extended timeout for larger files
+      });
 
-    // Redirect the browser to the secure, signed Cloudinary download link
-    res.redirect(signedUrl);
+      // Set headers for forced download
+      const encodedName = encodeURIComponent(file.originalName);
+      res.setHeader('Content-Disposition', `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`);
+      res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+      
+      if (response.headers['content-length']) {
+        res.setHeader('Content-Length', response.headers['content-length']);
+      }
+
+      // Stream directly to browser
+      return response.data.pipe(res);
+
+    } catch (proxyError) {
+      console.warn('Proxy fetch failed or 401, falling back to Signed Redirect:', proxyError.message);
+      
+      // LAYER 2: Signed Redirect Fallback
+      // If the server-side fetch fails, we generate a secure signed URL for the browser to handle
+      const signedUrl = cloudinary.url(file.cloudinaryId, {
+        resource_type: file.resourceType || 'auto',
+        flags: 'attachment',
+        sign_url: true,
+        secure: true
+      });
+
+      return res.redirect(signedUrl);
+    }
 
   } catch (error) {
-    console.error('Secure Download Error:', error.message);
-    res.status(500).send('Error generating secure download link.');
+    console.error('Final Download Error:', error.message);
+    if (!res.headersSent) {
+      res.status(500).send('Unable to process download. Please try again later.');
+    }
   }
 });
 
