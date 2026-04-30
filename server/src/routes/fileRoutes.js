@@ -109,52 +109,52 @@ router.get('/download/:code', async (req, res) => {
       return res.status(404).send('File not found or expired');
     }
 
-    // LAYER 1: Authenticated Proxy Fetch
-    // We use Basic Auth with Cloudinary credentials to bypass 401 errors
+    console.log(`[Download] Initiating for: ${file.originalName} (${file.resourceType})`);
+
+    // Prepare Authentication
+    const auth = Buffer.from(`${process.env.CLOUDINARY_API_KEY}:${process.env.CLOUDINARY_API_SECRET}`).toString('base64');
+
     try {
-      const auth = Buffer.from(`${process.env.CLOUDINARY_API_KEY}:${process.env.CLOUDINARY_API_SECRET}`).toString('base64');
-      
+      // SMART PROXY: Try to fetch with authentication
       const response = await axios({
         method: 'get',
         url: file.url,
-        headers: {
-          'Authorization': `Basic ${auth}`
-        },
+        headers: { 'Authorization': `Basic ${auth}` },
         responseType: 'stream',
-        timeout: 45000 // Extended timeout for larger files
+        timeout: 45000
       });
 
-      // Set headers for forced download
       const encodedName = encodeURIComponent(file.originalName);
       res.setHeader('Content-Disposition', `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`);
       res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
       
-      if (response.headers['content-length']) {
-        res.setHeader('Content-Length', response.headers['content-length']);
-      }
-
-      // Stream directly to browser
       return response.data.pipe(res);
 
     } catch (proxyError) {
-      console.warn('Proxy fetch failed or 401, falling back to Signed Redirect:', proxyError.message);
+      console.warn(`[Download] Proxy failed (${proxyError.message}), trying signed redirect...`);
       
-      // LAYER 2: Signed Redirect Fallback
-      // If the server-side fetch fails, we generate a secure signed URL for the browser to handle
+      // SMART REDIRECT: Use the SDK to build a guaranteed signed URL
+      // We force 'attachment' flag to ensure it doesn't just open in the browser
       const signedUrl = cloudinary.url(file.cloudinaryId, {
         resource_type: file.resourceType || 'auto',
         flags: 'attachment',
         sign_url: true,
-        secure: true
+        secure: true,
+        version: Math.floor(Date.now() / 1000) // Fresh version to bypass cache
       });
 
+      console.log(`[Download] Redirecting to signed URL: ${signedUrl}`);
       return res.redirect(signedUrl);
     }
 
   } catch (error) {
-    console.error('Final Download Error:', error.message);
+    console.error('CRITICAL Download Error:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     if (!res.headersSent) {
-      res.status(500).send('Unable to process download. Please try again later.');
+      res.status(500).send(`System error during download: ${error.message}. Check server logs for details.`);
     }
   }
 });
