@@ -34,9 +34,12 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       else resourceType = 'raw';
     }
 
+    // Capture the most accurate Cloudinary ID (preferring public_id if available)
+    const cloudinaryId = req.file.public_id || req.file.filename;
+
     const newFile = await File.create({
       originalName: req.file.originalname,
-      cloudinaryId: req.file.filename,
+      cloudinaryId: cloudinaryId,
       url: req.file.path,
       resourceType: resourceType,
       size: req.file.size,
