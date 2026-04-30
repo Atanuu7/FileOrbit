@@ -5,6 +5,7 @@ import { customAlphabet } from 'nanoid';
 const nanoid_custom = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 import bcrypt from 'bcrypt';
 import https from 'https';
+import http from 'http';
 
 const router = express.Router();
 
@@ -100,9 +101,10 @@ router.get('/download/:code', async (req, res) => {
       return res.status(404).send('File not found or expired');
     }
 
-    // Use the built-in https module for maximum compatibility
-    // This avoids external dependency issues and works perfectly in serverless environments
-    https.get(file.url, (storageRes) => {
+    // Choose the right protocol (http or https) based on the URL
+    const protocol = file.url.startsWith('https') ? https : http;
+
+    protocol.get(file.url, (storageRes) => {
       if (storageRes.statusCode !== 200) {
         return res.status(storageRes.statusCode).send('Error fetching file from storage');
       }
