@@ -133,31 +133,26 @@ router.get('/download/:code', async (req, res) => {
       
       return response.data.pipe(res);
 
-    } catch (proxyError) {
-      console.warn(`[Download] Proxy failed (${proxyError.message}), trying signed redirect...`);
-      
-      // SMART REDIRECT: Use the SDK to build a guaranteed signed URL
-      // We force 'attachment' flag to ensure it doesn't just open in the browser
-      const signedUrl = cloudinary.url(file.cloudinaryId, {
-        resource_type: file.resourceType || 'auto',
-        flags: 'attachment',
-        sign_url: true,
-        secure: true,
-        version: Math.floor(Date.now() / 1000) // Fresh version to bypass cache
-      });
+    // LAYER 2: Secure Redirect Fallback (Official SDK Utility)
+    // We use private_download_url which is the most reliable way to generate 
+    // signed download links for any resource type (raw, video, image).
+    const extension = file.originalName.split('.').pop();
+    const signedUrl = cloudinary.utils.private_download_url(file.cloudinaryId, extension, {
+      resource_type: file.resourceType || 'raw',
+      attachment: true,
+      secure: true
+    });
 
-      console.log(`[Download] Redirecting to signed URL: ${signedUrl}`);
-      return res.redirect(signedUrl);
-    }
+    console.log(`[Download] Redirecting to stable SDK URL: ${signedUrl}`);
+    return res.redirect(signedUrl);
 
   } catch (error) {
     console.error('CRITICAL Download Error:', {
       message: error.message,
-      code: error.code,
-      stack: error.stack
+      code: error.code
     });
     if (!res.headersSent) {
-      res.status(500).send(`System error during download: ${error.message}. Check server logs for details.`);
+      res.status(500).send(`System error during download: ${error.message}`);
     }
   }
 });
