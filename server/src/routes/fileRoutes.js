@@ -100,6 +100,11 @@ router.get('/download/:code', async (req, res) => {
       return res.status(404).send('File not found or expired');
     }
 
+    if (!file.url) {
+      console.error('Download Error: File record found but URL is missing');
+      return res.status(404).send('File storage link is missing');
+    }
+
     // Use axios to fetch the file from Cloudinary as a stream
     // This handles redirects, both http/https, and gives us better control over headers
     const response = await axios({
@@ -137,10 +142,15 @@ router.get('/download/:code', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Download Proxy Error:', error.message);
-    // If headers already sent, we can't send a JSON error
+    console.error('Download Proxy Error Detail:', {
+      message: error.message,
+      url: file?.url,
+      status: error.response?.status
+    });
+    
     if (!res.headersSent) {
-      res.status(500).send('Error processing download request. The storage link may be broken.');
+      const status = error.response?.status || 500;
+      res.status(status).send(`Download failed: ${error.message}. Please check if the file still exists in storage.`);
     }
   }
 });
