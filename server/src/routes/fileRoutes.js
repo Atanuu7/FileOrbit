@@ -4,6 +4,7 @@ import File from '../models/File.js';
 import { customAlphabet } from 'nanoid';
 const nanoid_custom = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 import bcrypt from 'bcrypt';
+import https from 'https';
 
 const router = express.Router();
 
@@ -99,30 +100,33 @@ router.get('/download/:code', async (req, res) => {
       return res.status(404).send('File not found or expired');
     }
 
-    if (!file.url) {
-      return res.status(404).send('File storage link is missing');
-    }
+    // Use the built-in https module for maximum compatibility
+    // This avoids external dependency issues and works perfectly in serverless environments
+    https.get(file.url, (storageRes) => {
+      if (storageRes.statusCode !== 200) {
+        return res.status(storageRes.statusCode).send('Error fetching file from storage');
+      }
 
-    // High-performance direct download method:
-    // We redirect the user directly to the Cloudinary URL but inject the 'fl_attachment' flag.
-    // This tells Cloudinary to serve the file with 'Content-Disposition: attachment', 
-    // ensuring the browser downloads it instead of trying to open it.
-    
-    let downloadUrl = file.url;
-    
-    // Inject the attachment flag into the URL
-    // Correct Cloudinary syntax: /upload/fl_attachment/
-    
-    if (downloadUrl.includes('/upload/')) {
-      downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
-    }
+      // Set headers to force download with original name
+      // We use a safe version of the filename for the header
+      const safeName = encodeURIComponent(file.originalName);
+      res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${safeName}`);
+      res.setHeader('Content-Type', storageRes.headers['content-type'] || 'application/octet-stream');
+      
+      if (storageRes.headers['content-length']) {
+        res.setHeader('Content-Length', storageRes.headers['content-length']);
+      }
 
-    // Redirect the browser to the direct Cloudinary download link
-    res.redirect(downloadUrl);
+      // Stream the data directly to the user
+      storageRes.pipe(res);
+    }).on('error', (err) => {
+      console.error('Storage Connection Error:', err);
+      res.status(500).send('Connection to storage failed');
+    });
 
   } catch (error) {
-    console.error('Download Redirect Error:', error.message);
-    res.status(500).send('Error generating download link. Please try again.');
+    console.error('Download Error:', error.message);
+    res.status(500).send('Server error processing download');
   }
 });
 
