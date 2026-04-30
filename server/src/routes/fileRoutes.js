@@ -28,6 +28,12 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
     // Detect resource type accurately for Cloudinary signing
     let resourceType = req.file.resource_type;
+    if (!resourceType && req.file.path) {
+      if (req.file.path.includes('/image/upload/')) resourceType = 'image';
+      else if (req.file.path.includes('/video/upload/')) resourceType = 'video';
+      else if (req.file.path.includes('/raw/upload/')) resourceType = 'raw';
+    }
+    
     if (!resourceType) {
       if (req.file.mimetype.startsWith('image/')) resourceType = 'image';
       else if (req.file.mimetype.startsWith('video/')) resourceType = 'video';
@@ -36,6 +42,8 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
     // Capture the most accurate Cloudinary ID (preferring public_id if available)
     const cloudinaryId = req.file.public_id || req.file.filename;
+    console.log('[Upload] Multer File Object:', JSON.stringify(req.file, null, 2));
+    console.log(`[Upload] Detected Resource Type: ${resourceType}, Cloudinary ID: ${cloudinaryId}`);
 
     const newFile = await File.create({
       originalName: req.file.originalname,
@@ -114,15 +122,34 @@ router.get('/download/:code', async (req, res) => {
 
     console.log(`[Download] Initiating for: ${file.originalName} (${file.resourceType})`);
 
+    const extension = file.originalName.split('.').pop();
+    const versionMatch = file.url.match(/\/v(\d+)\//);
+    const version = versionMatch ? versionMatch[1] : null;
+    
+    // Generate the signed delivery URL
+    // We MUST include the version if the Cloudinary account has strict security enabled
+    const downloadUrl = cloudinary.url(file.cloudinaryId, {
+      resource_type: file.resourceType || 'image',
+      format: extension,
+      flags: 'attachment',
+      version: version,
+      sign_url: true,
+      secure: true
+    });
+
     try {
       // LAYER 1: Smart Proxy
-      // We stream directly from the Cloudinary URL. 
-      // We avoid Basic Auth headers here as they can cause issues with raw delivery servers.
+      // We stream from the signed URL. 
+      console.log(`[Download] Proxying from signed URL: ${downloadUrl}`);
+      
       const response = await axios({
         method: 'get',
-        url: file.url,
+        url: downloadUrl,
         responseType: 'stream',
-        timeout: 45000
+        timeout: 60000,
+        headers: {
+          'User-Agent': 'FileOrbit-Server/2.0'
+        }
       });
 
       const encodedName = encodeURIComponent(file.originalName);
@@ -132,19 +159,11 @@ router.get('/download/:code', async (req, res) => {
       return response.data.pipe(res);
 
     } catch (proxyError) {
-      console.warn(`[Download] Proxy fetch failed (${proxyError.message}), falling back to SDK signed URL...`);
+      const status = proxyError.response ? proxyError.response.status : 'N/A';
+      console.error(`[Download] Proxy Failed (Status: ${status}, Message: ${proxyError.message}). Redirecting...`);
       
-      // LAYER 2: Secure Redirect Fallback (Official SDK Utility)
-      // If the direct stream fails, we generate a signed URL which is highly reliable.
-      const extension = file.originalName.split('.').pop();
-      const signedUrl = cloudinary.utils.private_download_url(file.cloudinaryId, extension, {
-        resource_type: file.resourceType || 'raw',
-        attachment: true,
-        secure: true
-      });
-
-      console.log(`[Download] Redirecting to SDK URL: ${signedUrl}`);
-      return res.redirect(signedUrl);
+      // LAYER 2: Direct Redirect Fallback
+      return res.redirect(downloadUrl);
     }
 
   } catch (error) {

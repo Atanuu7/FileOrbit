@@ -3,8 +3,8 @@ import File from '../models/File.js';
 import { cloudinary } from '../config/cloudinary.js';
 
 const startCleanupJob = () => {
-  // Run every 10 minutes
-  cron.schedule('*/10 * * * *', async () => {
+  // Run every hour
+  cron.schedule('0 * * * *', async () => {
     console.log('Running scheduled cleanup task...');
     try {
       const now = new Date();
