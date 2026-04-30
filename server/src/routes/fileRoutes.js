@@ -114,15 +114,13 @@ router.get('/download/:code', async (req, res) => {
 
     console.log(`[Download] Initiating for: ${file.originalName} (${file.resourceType})`);
 
-    // Prepare Authentication
-    const auth = Buffer.from(`${process.env.CLOUDINARY_API_KEY}:${process.env.CLOUDINARY_API_SECRET}`).toString('base64');
-
     try {
-      // SMART PROXY: Try to fetch with authentication
+      // LAYER 1: Smart Proxy
+      // We stream directly from the Cloudinary URL. 
+      // We avoid Basic Auth headers here as they can cause issues with raw delivery servers.
       const response = await axios({
         method: 'get',
         url: file.url,
-        headers: { 'Authorization': `Basic ${auth}` },
         responseType: 'stream',
         timeout: 45000
       });
@@ -133,24 +131,24 @@ router.get('/download/:code', async (req, res) => {
       
       return response.data.pipe(res);
 
-    // LAYER 2: Secure Redirect Fallback (Official SDK Utility)
-    // We use private_download_url which is the most reliable way to generate 
-    // signed download links for any resource type (raw, video, image).
-    const extension = file.originalName.split('.').pop();
-    const signedUrl = cloudinary.utils.private_download_url(file.cloudinaryId, extension, {
-      resource_type: file.resourceType || 'raw',
-      attachment: true,
-      secure: true
-    });
+    } catch (proxyError) {
+      console.warn(`[Download] Proxy fetch failed (${proxyError.message}), falling back to SDK signed URL...`);
+      
+      // LAYER 2: Secure Redirect Fallback (Official SDK Utility)
+      // If the direct stream fails, we generate a signed URL which is highly reliable.
+      const extension = file.originalName.split('.').pop();
+      const signedUrl = cloudinary.utils.private_download_url(file.cloudinaryId, extension, {
+        resource_type: file.resourceType || 'raw',
+        attachment: true,
+        secure: true
+      });
 
-    console.log(`[Download] Redirecting to stable SDK URL: ${signedUrl}`);
-    return res.redirect(signedUrl);
+      console.log(`[Download] Redirecting to SDK URL: ${signedUrl}`);
+      return res.redirect(signedUrl);
+    }
 
   } catch (error) {
-    console.error('CRITICAL Download Error:', {
-      message: error.message,
-      code: error.code
-    });
+    console.error('CRITICAL Download Error:', error.message);
     if (!res.headersSent) {
       res.status(500).send(`System error during download: ${error.message}`);
     }
