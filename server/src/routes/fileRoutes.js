@@ -4,7 +4,6 @@ import File from '../models/File.js';
 import { customAlphabet } from 'nanoid';
 const nanoid_custom = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 import bcrypt from 'bcrypt';
-import axios from 'axios';
 
 const router = express.Router();
 
@@ -101,57 +100,34 @@ router.get('/download/:code', async (req, res) => {
     }
 
     if (!file.url) {
-      console.error('Download Error: File record found but URL is missing');
       return res.status(404).send('File storage link is missing');
     }
 
-    // Use axios to fetch the file from Cloudinary as a stream
-    // This handles redirects, both http/https, and gives us better control over headers
-    const response = await axios({
-      method: 'get',
-      url: file.url,
-      responseType: 'stream',
-      timeout: 30000, // 30 second timeout for storage fetch
-    });
-
-    // Check if Cloudinary returned a success status
-    if (response.status < 200 || response.status >= 300) {
-      throw new Error(`Storage responded with status: ${response.status}`);
+    // High-performance direct download method:
+    // We redirect the user directly to the Cloudinary URL but inject the 'fl_attachment' flag.
+    // This tells Cloudinary to serve the file with 'Content-Disposition: attachment', 
+    // ensuring the browser downloads it instead of trying to open it.
+    
+    let downloadUrl = file.url;
+    
+    // Inject the attachment flag and the original filename into the URL
+    // Cloudinary syntax: /upload/fl_attachment:filename/
+    // We clean the filename to ensure it doesn't break the URL
+    const safeFileName = file.originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    
+    if (downloadUrl.includes('/upload/')) {
+      downloadUrl = downloadUrl.replace('/upload/', `/upload/fl_attachment:${safeFileName}/`);
+    } else if (downloadUrl.includes('/raw/upload/')) {
+      // For raw files (non-images/PDFs)
+      downloadUrl = downloadUrl.replace('/raw/upload/', `/raw/upload/fl_attachment:${safeFileName}/`);
     }
 
-    // Force the browser to download the file with its original name
-    // Using both filename and filename* for maximum browser compatibility (handles special characters)
-    const encodedName = encodeURIComponent(file.originalName);
-    res.setHeader('Content-Disposition', `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`);
-
-    // Forward the Content-Type and Content-Length if available
-    res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
-    if (response.headers['content-length']) {
-      res.setHeader('Content-Length', response.headers['content-length']);
-    }
-
-    // Pipe the file data directly to the user's browser
-    response.data.pipe(res);
-
-    // Handle stream errors
-    response.data.on('error', (err) => {
-      console.error('Stream Error during download:', err);
-      if (!res.headersSent) {
-        res.status(500).send('Error streaming file');
-      }
-    });
+    // Redirect the browser to the direct Cloudinary download link
+    res.redirect(downloadUrl);
 
   } catch (error) {
-    console.error('Download Proxy Error Detail:', {
-      message: error.message,
-      url: file?.url,
-      status: error.response?.status
-    });
-    
-    if (!res.headersSent) {
-      const status = error.response?.status || 500;
-      res.status(status).send(`Download failed: ${error.message}. Please check if the file still exists in storage.`);
-    }
+    console.error('Download Redirect Error:', error.message);
+    res.status(500).send('Error generating download link. Please try again.');
   }
 });
 
