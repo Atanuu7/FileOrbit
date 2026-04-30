@@ -4,7 +4,7 @@ import File from '../models/File.js';
 import { customAlphabet } from 'nanoid';
 const nanoid_custom = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 import bcrypt from 'bcrypt';
-import https from 'https';
+import axios from 'axios';
 
 const router = express.Router();
 
@@ -100,25 +100,48 @@ router.get('/download/:code', async (req, res) => {
       return res.status(404).send('File not found or expired');
     }
 
-    // Force the browser to download the file with its original name
-    res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
+    // Use axios to fetch the file from Cloudinary as a stream
+    // This handles redirects, both http/https, and gives us better control over headers
+    const response = await axios({
+      method: 'get',
+      url: file.url,
+      responseType: 'stream',
+      timeout: 30000, // 30 second timeout for storage fetch
+    });
 
-    // Fetch the file from the URL (Cloudinary) and stream it directly to the user
-    // We use https.get for maximum compatibility and performance in Node.js
-    https.get(file.url, (cloudinaryRes) => {
-      // Forward the Content-Type from Cloudinary (e.g., application/pdf or image/png)
-      res.setHeader('Content-Type', cloudinaryRes.headers['content-type'] || 'application/octet-stream');
-      
-      // Pipe the file data directly to the user's browser
-      cloudinaryRes.pipe(res);
-    }).on('error', (err) => {
-      console.error('Cloudinary Stream Error:', err);
-      res.status(500).send('Error streaming file from storage');
+    // Check if Cloudinary returned a success status
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`Storage responded with status: ${response.status}`);
+    }
+
+    // Force the browser to download the file with its original name
+    // Using both filename and filename* for maximum browser compatibility (handles special characters)
+    const encodedName = encodeURIComponent(file.originalName);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`);
+
+    // Forward the Content-Type and Content-Length if available
+    res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+    if (response.headers['content-length']) {
+      res.setHeader('Content-Length', response.headers['content-length']);
+    }
+
+    // Pipe the file data directly to the user's browser
+    response.data.pipe(res);
+
+    // Handle stream errors
+    response.data.on('error', (err) => {
+      console.error('Stream Error during download:', err);
+      if (!res.headersSent) {
+        res.status(500).send('Error streaming file');
+      }
     });
 
   } catch (error) {
-    console.error('Download Proxy Error:', error);
-    res.status(500).send('Error processing download request');
+    console.error('Download Proxy Error:', error.message);
+    // If headers already sent, we can't send a JSON error
+    if (!res.headersSent) {
+      res.status(500).send('Error processing download request. The storage link may be broken.');
+    }
   }
 });
 
